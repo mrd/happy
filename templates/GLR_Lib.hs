@@ -51,8 +51,9 @@ import GHC.Exts
 #endif
 
 #if defined(HAPPY_DEBUG)
+import System.IO
 import System.IO.Unsafe
-import Pretty
+import Text.PrettyPrint
 #endif
 
 {- these inserted by Happy -}
