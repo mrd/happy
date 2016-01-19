@@ -45,10 +45,6 @@ import qualified Data.Map as Map
 import Control.Monad (foldM)
 import Data.Maybe (fromJust)
 import Data.List (insertBy, nub, maximumBy, partition, find, groupBy, delete)
-#if defined(HAPPY_GHC)
-import GHC.Prim
-import GHC.Exts
-#endif
 
 #if defined(HAPPY_DEBUG)
 import System.IO
@@ -63,16 +59,34 @@ fakeimport DATA
 {- borrowed from GenericTemplate.hs -}
 
 #ifdef HAPPY_GHC
+#undef __GLASGOW_HASKELL__
+#define HAPPY_IF_GHC_GT_500 #if __GLASGOW_HASKELL__ > 500
+#define HAPPY_IF_GHC_GE_503 #if __GLASGOW_HASKELL__ >= 503
+#define HAPPY_ELIF_GHC_500 #elif __GLASGOW_HASKELL__ == 500
+#define HAPPY_IF_GHC_GT_706 #if __GLASGOW_HASKELL__ > 706
+#define HAPPY_ELSE #else
+#define HAPPY_ENDIF #endif
+#define HAPPY_DEFINE #define
+#endif
+
+#ifdef HAPPY_GHC
 #define ILIT(n) n#
-#define IBOX(n) (I# (n))
-#define FAST_INT Int#
-#define ULT(n,m) (n <# m)
-#define GTE(n,m) (n >=# m)
-#define UEQ(n,m) (n ==# m)
-#define PLUS(n,m) (n +# m)
-#define MINUS(n,m) (n -# m)
-#define TIMES(n,m) (n *# m)
-#define NEGATE(n) (negateInt# (n))
+#define IBOX(n) (Happy_GHC_Exts.I# (n))
+#define FAST_INT Happy_GHC_Exts.Int#
+-- Do not remove this comment. Required to fix CPP parsing when using GCC and a clang-compiled alex.
+HAPPY_IF_GHC_GT_706
+HAPPY_DEFINE ULT(n,m) ((Happy_GHC_Exts.tagToEnum# (n Happy_GHC_Exts.<# m)) :: Bool)
+HAPPY_DEFINE GTE(n,m) ((Happy_GHC_Exts.tagToEnum# (n Happy_GHC_Exts.>=# m)) :: Bool)
+HAPPY_DEFINE UEQ(n,m) ((Happy_GHC_Exts.tagToEnum# (n Happy_GHC_Exts.==# m)) :: Bool)
+HAPPY_ELSE
+HAPPY_DEFINE ULT(n,m) (n Happy_GHC_Exts.<# m)
+HAPPY_DEFINE GTE(n,m) (n Happy_GHC_Exts.>=# m)
+HAPPY_DEFINE UEQ(n,m) (n Happy_GHC_Exts.==# m)
+HAPPY_ENDIF
+#define PLUS(n,m) (n Happy_GHC_Exts.+# m)
+#define MINUS(n,m) (n Happy_GHC_Exts.-# m)
+#define TIMES(n,m) (n Happy_GHC_Exts.*# m)
+#define NEGATE(n) (Happy_GHC_Exts.negateInt# (n))
 #define IF_GHC(x) (x)
 #else
 #define ILIT(n) (n)
@@ -88,10 +102,41 @@ fakeimport DATA
 #define IF_GHC(x)
 #endif
 
+#if defined(HAPPY_ARRAY)
+data Happy_IntList = HappyCons FAST_INT Happy_IntList
+#define CONS(h,t) (HappyCons (h) (t))
+#else
+#define CONS(h,t) ((h):(t))
+#endif
+
+#if defined(HAPPY_ARRAY)
+#define ERROR_TOK ILIT(0)
+#define DO_ACTION(state,i,tk,sts,stk) happyDoAction i tk state sts (stk)
+#define HAPPYSTATE(i) (i)
+#define GOTO(action) happyGoto
+#define IF_ARRAYS(x) (x)
+#else
+#define ERROR_TOK ILIT(1)
+#define DO_ACTION(state,i,tk,sts,stk) state i i tk HAPPYSTATE(state) sts (stk)
+#define HAPPYSTATE(i) (HappyState (i))
+#define GOTO(action) action
+#define IF_ARRAYS(x)
+#endif
+
+#if defined(HAPPY_COERCE)
+#define GET_ERROR_TOKEN(x)  (case Happy_GHC_Exts.unsafeCoerce# x of { IBOX(i) -> i })
+#define MK_ERROR_TOKEN(i)   (Happy_GHC_Exts.unsafeCoerce# IBOX(i))
+#define MK_TOKEN(x)         (happyInTok (x))
+#else
+#define GET_ERROR_TOKEN(x)  (case x of { HappyErrorToken IBOX(i) -> i })
+#define MK_ERROR_TOKEN(i)   (HappyErrorToken IBOX(i))
+#define MK_TOKEN(x)         (HappyTerminal (x))
+#endif
+
 #if defined(HAPPY_DEBUG)
-#define DEBUG_TRACE(s)    (happyTrace (s) $ return ())
-happyTrace string expr = unsafePerformIO $ do
-    hPutStr stderr string
+#define DEBUG_TRACE(s)    (happyTrace (s)) $
+happyTrace string expr = Happy_System_IO_Unsafe.unsafePerformIO $ do
+    Happy_System_IO.hPutStr Happy_System_IO.stderr string
     return expr
 #else
 #define DEBUG_TRACE(s)    {- nothing -}
