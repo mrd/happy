@@ -435,8 +435,12 @@ instance Monad (ST s i) where
  return a = MkST $ \s i -> (a,s,i)
  MkST sf >>= k
   = MkST $ \s i ->
-	case sf s i of
-	 (a,s',i') -> let (MkST sf') = k a in  sf' s' i'
+        case sf s i of
+         (a,s',i') -> let (MkST sf') = k a in  sf' s' i'
+
+instance Applicative (ST s i) where
+ pure = return
+ (<*>) = ap
 
 runST :: s -> i -> ST s i a -> (s,a)
 runST s i (MkST sf) = case sf s i of
